@@ -33,7 +33,8 @@ print('Num val samples {}'.format(len(val_imgs)))
 
 
 
-import resnet
+#import resnet
+import darknet as basenet
 from keras import backend as K
 from keras.optimizers import Adam, SGD
 from keras.layers import Input
@@ -52,14 +53,14 @@ img_input = Input(shape=input_shape_img)
 roi_input = Input(shape=(C.num_rois, 4))
 
 # define the base network (resnet here, can be VGG, Inception, etc)
-shared_layers = resnet.resnet_base(img_input)
+shared_layers = basenet.darknet_base(img_input)
 
 # define the RPN, built on the base layers
 num_anchors = len(C.anchor_box_scales) * len(C.anchor_box_ratios)
-rpn = resnet.rpn(shared_layers,num_anchors)
+rpn = basenet.rpn(shared_layers,num_anchors)
 
 # the classifier is build on top of the base layers + the ROI pooling layer + extra layers
-classifier = resnet.classifier(shared_layers, roi_input, C.num_rois, nb_classes=len(classes_count)+1)
+classifier = basenet.classifier(shared_layers, roi_input, C.num_rois, nb_classes=len(classes_count)+1)
 
 # define the full model
 model = Model([img_input, roi_input], rpn + classifier)
