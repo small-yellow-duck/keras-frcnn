@@ -12,6 +12,7 @@ C.num_rois = 8
 
 
 from keras_frcnn.pascal_voc_parser import get_data
+#from keras_frcnn.simple_parser import get_data
 
 all_imgs,classes_count,class_mapping = get_data(sys.argv[1])
 

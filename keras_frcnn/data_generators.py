@@ -108,8 +108,8 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 	n_anchratios = len(anchor_ratios)
 	
 	# initialise empty output objectives
-	y_rpn_overlap = np.zeros((output_height, output_width, num_anchors))
-	y_is_box_valid = np.zeros((output_height, output_width, num_anchors))
+	y_rpn_overlap = np.zeros((output_height, output_width, num_anchors)).astype(int)
+	y_is_box_valid = np.zeros((output_height, output_width, num_anchors)).astype(int)
 	y_rpn_regr = np.zeros((output_height, output_width, num_anchors * 4))
 
 	num_bboxes = len(img_data['bboxes'])
@@ -117,8 +117,8 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 	num_anchors_for_bbox = np.zeros(num_bboxes).astype(int)
 	best_anchor_for_bbox = -1*np.ones((num_bboxes, 4)).astype(int)
 	best_iou_for_bbox = np.zeros(num_bboxes)
-	best_x_for_bbox = np.zeros((num_bboxes, 4)).astype(int)
-	best_dx_for_bbox = np.zeros((num_bboxes, 4)).astype(int)
+	best_x_for_bbox = np.zeros((num_bboxes, 4))
+	best_dx_for_bbox = np.zeros((num_bboxes, 4))
 
 	pos_samples = []
 	cls_samples = []
@@ -174,8 +174,9 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 						if curr_iou > best_iou_for_bbox[bbox_num] or curr_iou > 0.5:
 							tx = (gta[bbox_num, 0] - x1_anc) / (x2_anc - x1_anc)
 							ty = (gta[bbox_num, 2] - y1_anc) / (y2_anc - y1_anc)
-							tw = np.log((gta[bbox_num, 1] - gta[bbox_num, 0]) / (x2_anc - x1_anc))
-							th = np.log((gta[bbox_num, 3] - gta[bbox_num, 2]) / (y2_anc - y1_anc))
+							#calculate log of tw and th later
+							tw = 1.0*(gta[bbox_num, 1] - gta[bbox_num, 0]) / (x2_anc - x1_anc) 
+							th = 1.0*(gta[bbox_num, 3] - gta[bbox_num, 2]) / (y2_anc - y1_anc) 
 						
 						if img_data['bboxes'][bbox_num]['class'] != 'bg':
 
@@ -228,7 +229,8 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 						y_is_box_valid[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 1
 						y_rpn_overlap[jy, ix, anchor_ratio_idx + n_anchratios * anchor_size_idx] = 1
 						start = 4 * anchor_ratio_idx + 4 * n_anchratios * anchor_size_idx
-						y_rpn_regr[jy, ix, start:start+4 ] = best_regr
+						y_rpn_regr[jy, ix, start:start+2 ] = best_regr[0:2]
+						y_rpn_regr[jy, ix, start+2:start+4 ] = np.log(best_regr[2:])
 
 
 	#check that there is at least one labeled region in the image
@@ -249,7 +251,10 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 				best_anchor_for_bbox[idx,3]] = 1
 			start = 4 * best_anchor_for_bbox[idx,2] + 4 * n_anchratios * best_anchor_for_bbox[idx,3] + 0	
 			y_rpn_regr[
-				best_anchor_for_bbox[idx,0], best_anchor_for_bbox[idx,1], start:start+4] = best_dx_for_bbox[idx, :]
+				best_anchor_for_bbox[idx,0], best_anchor_for_bbox[idx,1], start:start+2] = best_dx_for_bbox[idx, 0:2]
+			y_rpn_regr[
+				best_anchor_for_bbox[idx,0], best_anchor_for_bbox[idx,1], start+2:start+4] = np.log(best_dx_for_bbox[idx, 2:4])
+
 
 	y_rpn_overlap = np.transpose(y_rpn_overlap, (2, 0, 1))
 	y_rpn_overlap = np.expand_dims(y_rpn_overlap, axis=0)
@@ -284,6 +289,8 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 	val_locs = random.sample(range(neg_samples.shape[0]), C.num_rois - valid_cls_samples.shape[0])
 	valid_neg_samples = neg_samples[val_locs, :]
 
+	valid_regr_samples[:, 2:] = np.log(valid_regr_samples[:, 2:])
+
 	x_rois = np.expand_dims(np.concatenate([valid_pos_samples, valid_neg_samples]), axis=0)
 	
 	y_class_num = np.zeros((x_rois.shape[1], len(class_mapping)))
@@ -300,6 +307,7 @@ def calcY(C, class_mapping, img_data, width, height, resized_width, resized_heig
 		if y_class_num[i, -1] != 1:
 			y_class_regr[i, :4] = 1 # set value to 1 if the sample is positive
 			y_class_regr[i,4:] = valid_regr_samples[i,:]
+			
 
 	y_class_num = np.expand_dims(y_class_num, axis=0)
 	y_class_regr = np.expand_dims(y_class_regr, axis=0)
